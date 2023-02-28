@@ -1,10 +1,11 @@
 ﻿using System;
 using GenericModConfigMenu;
 using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Graphics;
 using StardewModdingAPI;
 using StardewModdingAPI.Events;
 using StardewValley;
-
+using StardewValley.Locations;
 
 namespace LightSwitch
 {
@@ -26,9 +27,22 @@ namespace LightSwitch
 
         private void GameLoop_UpdateTicked(object sender, UpdateTickedEventArgs e)
         {
-            if (Config.EnableLight && Game1.ambientLight != Color.White * 0f)
+            if (!Context.IsPlayerFree) return;
+            if (Config.EnableLight)
             {
-                Game1.ambientLight = Color.White * 0f;
+                // makes outdoors/indoors light
+                IReflectedField<Color> ambientLight = Helper.Reflection.GetField<Color>(typeof(Game1), "ambientLight");
+                ambientLight.SetValue(Color.Transparent);
+                if (Game1.currentLocation.Name.StartsWith("UndergroundMine"))
+                {
+                    // removes darkening of the mine floors (and probably other things idk)
+                    Game1.drawLighting = false;
+                    // yeetus-deleetus the fog layer
+                    IReflectedProperty<bool> ambientFog = Helper.Reflection.GetProperty<bool>(Game1.currentLocation, "ambientFog");
+                    IReflectedField<float> fogAlpha = Helper.Reflection.GetField<float>(Game1.currentLocation, "fogAlpha");
+                    ambientFog.SetValue(false);
+                    fogAlpha.SetValue(0f);
+                }
             }
         }
 
@@ -39,9 +53,13 @@ namespace LightSwitch
             if (e.Button == Config.Keybind)
             {
                 if (Config.EnableLight)
-                { Config.EnableLight = false; }
+                {
+                    Config.EnableLight = false;
+                }
                 else
-                { Config.EnableLight = true; }
+                {
+                    Config.EnableLight = true;
+                }
             }
         }
 
