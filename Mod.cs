@@ -1,5 +1,6 @@
 ﻿using GenericModConfigMenu;
 using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Graphics;
 using StardewModdingAPI;
 using StardewModdingAPI.Events;
 using StardewValley;
@@ -16,7 +17,6 @@ namespace LightSwitch
         private ModConfig Config; // set in ModEntry
 
         /// <summary>Cache values</summary>
-        private Color lastAmbientLight;
         private bool lastAmbientFog;
         private float lastFogAlpha;
 
@@ -34,11 +34,22 @@ namespace LightSwitch
             helper.Events.GameLoop.GameLaunched += GameLoop_GameLaunched;
             helper.Events.Input.ButtonPressed += Input_ButtonPressed;
             helper.Events.GameLoop.UpdateTicked += GameLoop_UpdateTicked;
+            helper.Events.Content.AssetRequested += OnAssetRequested;
         }
 
         /*********
         ** Private methods
         *********/
+
+        private void OnAssetRequested(object? sender, AssetRequestedEventArgs e)
+        {
+            if (e.NameWithoutLocale.IsEquivalentTo("Mods/LightSwitch/ToolButton"))
+            {
+                e.LoadFromModFile<Texture2D>("assets/icon.png", AssetLoadPriority.Low);
+            }
+        }
+
+
         /// <inheritdoc cref="IGameLoopEvents.GameLaunched"/>
         /// <param name="sender">The event sender.</param>
         /// <param name="e">The event data.</param>
@@ -77,6 +88,54 @@ namespace LightSwitch
                 getValue: () => Config.Keybind,
                 setValue: value => Config.Keybind = value
             );
+
+            // add Toolbar Icons
+            var toolbarIconsMenu = Helper.ModRegistry.GetApi<IToolbarIconsApi>("furyx639.ToolbarIcons");
+            if (toolbarIconsMenu is null)
+                return;
+
+            toolbarIconsMenu.AddToolbarIcon(
+                "holythesea.LightSwitch.Icon", "Mods/LightSwitch/ToolButton", new Rectangle(0, 0, 16, 16), "Toggle Light Switch"
+                );
+            toolbarIconsMenu.ToolbarIconPressed += (o, s) =>
+            {
+                if (s.Equals("holythesea.LightSwitch.Icon")) ToggleLight();
+            };
+        }
+
+        private void ToggleLight()
+        {
+            if (!Config.EnableLight) // switch on
+            {
+                // cache old values
+
+                if (Game1.currentLocation.Name.StartsWith("UndergroundMine"))
+                {
+                    IReflectedProperty<bool> ambientFog = Helper.Reflection.GetProperty<bool>(Game1.currentLocation, "ambientFog");
+                    IReflectedField<float> fogAlpha = Helper.Reflection.GetField<float>(Game1.currentLocation, "fogAlpha");
+
+                    lastAmbientFog = ambientFog.GetValue();
+                    lastFogAlpha = fogAlpha.GetValue();
+                }
+
+                Config.EnableLight = true;
+            }
+
+            else // switch off
+            {
+                Config.EnableLight = false;
+
+                // return values to vanilla game settings
+                Helper.Reflection.GetMethod(Game1.currentLocation, "_updateAmbientLighting").Invoke();
+                if (Game1.currentLocation.Name.StartsWith("UndergroundMine"))
+                {
+                    IReflectedProperty<bool> ambientFog = Helper.Reflection.GetProperty<bool>(Game1.currentLocation, "ambientFog");
+                    IReflectedField<float> fogAlpha = Helper.Reflection.GetField<float>(Game1.currentLocation, "fogAlpha");
+
+                    ambientFog.SetValue(lastAmbientFog);
+                    fogAlpha.SetValue(lastFogAlpha);
+                }
+            }
         }
 
         /// <inheritdoc cref="IInputEvents.ButtonPressed"/>
@@ -88,40 +147,7 @@ namespace LightSwitch
                 return;
             if (e.Button == Config.Keybind)
             {
-                IReflectedField<Color> ambientLight = Helper.Reflection.GetField<Color>(typeof(Game1), "ambientLight");
-
-                if (!Config.EnableLight) // switch on
-                {
-                    // cache old values
-                    lastAmbientLight = ambientLight.GetValue();
-
-                    if (Game1.currentLocation.Name.StartsWith("UndergroundMine"))
-                    {
-                        IReflectedProperty<bool> ambientFog = Helper.Reflection.GetProperty<bool>(Game1.currentLocation, "ambientFog");
-                        IReflectedField<float> fogAlpha = Helper.Reflection.GetField<float>(Game1.currentLocation, "fogAlpha");
-
-                        lastAmbientFog = ambientFog.GetValue();
-                        lastFogAlpha = fogAlpha.GetValue();
-                    }
-
-                    Config.EnableLight = true;
-                }
-
-                else // switch off
-                {
-                    Config.EnableLight = false;
-
-                    // return values to vanilla game settings
-                    ambientLight.SetValue(lastAmbientLight);
-                    if (Game1.currentLocation.Name.StartsWith("UndergroundMine"))
-                    {
-                        IReflectedProperty<bool> ambientFog = Helper.Reflection.GetProperty<bool>(Game1.currentLocation, "ambientFog");
-                        IReflectedField<float> fogAlpha = Helper.Reflection.GetField<float>(Game1.currentLocation, "fogAlpha");
-
-                        ambientFog.SetValue(lastAmbientFog);
-                        fogAlpha.SetValue(lastFogAlpha);
-                    }
-                }
+                ToggleLight();
             }
         }
 
@@ -143,7 +169,6 @@ namespace LightSwitch
                 // handle mine levels
                 // removes darkening of the mine floors (and probably other things idk)
                 Game1.drawLighting = false;
-
                 // remove fog
                 if (Config.ToggleMineFog)
                 {
