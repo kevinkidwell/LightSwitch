@@ -1,107 +1,50 @@
-﻿using System;
-using GenericModConfigMenu;
+﻿using GenericModConfigMenu;
 using Microsoft.Xna.Framework;
-using Microsoft.Xna.Framework.Graphics;
 using StardewModdingAPI;
 using StardewModdingAPI.Events;
 using StardewValley;
-using StardewValley.BellsAndWhistles;
-using StardewValley.Locations;
 
 namespace LightSwitch
 {
     /// <summary>The mod entry point</summary>
-    public class Mod : StardewModdingAPI.Mod
+    public class ModEntry : Mod
     {
-        internal static ModConfig Config;
-        public override void Entry(IModHelper helper)
-        {
-            Config = helper.ReadConfig<ModConfig>();
+        /*********
+         ** Fields
+         *********/
+        /// <summary>The mod configuration.</summary>
+        private ModConfig Config; // set in ModEntry
 
-            if (!Config.EnableLight)
-                return;
-
-            helper.Events.Input.ButtonPressed += Input_ButtonPressed;
-            helper.Events.GameLoop.UpdateTicked += GameLoop_UpdateTicked;
-            helper.Events.GameLoop.GameLaunched += GameLoop_GameLaunched;
-        }
-
+        /// <summary>Cache values</summary>
         private Color lastAmbientLight;
         private bool lastAmbientFog;
         private float lastFogAlpha;
 
-
-        private void GameLoop_UpdateTicked(object sender, UpdateTickedEventArgs e)
+        /*********
+        ** Public methods
+        *********/
+        /// <summary>The mod entry point, called after the mod is first loaded.</summary>
+        /// <param name="helper">Provides simplified APIs for writing mods.</param>
+        public override void Entry(IModHelper helper)
         {
-            if (!Context.IsPlayerFree) return;
+            // init
+            Config = helper.ReadConfig<ModConfig>();
 
-            IReflectedField<Color> ambientLight = Helper.Reflection.GetField<Color>(typeof(Game1), "ambientLight");
-
-            if (Config.EnableLight)
-                {
-
-                // makes outdoors/indoors light
-                ambientLight.SetValue(Color.Transparent);
-
-                if (Game1.currentLocation.Name.StartsWith("UndergroundMine"))
-                {
-                    IReflectedProperty<bool> ambientFog = Helper.Reflection.GetProperty<bool>(Game1.currentLocation, "ambientFog");
-                    IReflectedField<float> fogAlpha = Helper.Reflection.GetField<float>(Game1.currentLocation, "fogAlpha");
-
-                    // removes darkening of the mine floors (and probably other things idk)
-                    Game1.drawLighting = false;
-
-                    // yeetus-deleetus the fog layer
-                    ambientFog.SetValue(false);
-                    fogAlpha.SetValue(0f);
-                }
-            }
+            // hook events
+            helper.Events.GameLoop.GameLaunched += GameLoop_GameLaunched;
+            helper.Events.Input.ButtonPressed += Input_ButtonPressed;
+            helper.Events.GameLoop.UpdateTicked += GameLoop_UpdateTicked;
         }
 
-        private void Input_ButtonPressed(object sender, ButtonPressedEventArgs e)
-        {
-            if (!Context.CanPlayerMove)
-                return;
-            if (e.Button == Config.Keybind)
-            {
-                IReflectedField<Color> ambientLight = Helper.Reflection.GetField<Color>(typeof(Game1), "ambientLight");
-
-                if (!Config.EnableLight)
-                {
-                    lastAmbientLight = ambientLight.GetValue();
-
-                    if (Game1.currentLocation.Name.StartsWith("UndergroundMine"))
-                    {
-                        IReflectedProperty<bool> ambientFog = Helper.Reflection.GetProperty<bool>(Game1.currentLocation, "ambientFog");
-                        IReflectedField<float> fogAlpha = Helper.Reflection.GetField<float>(Game1.currentLocation, "fogAlpha");
-
-                        lastAmbientFog = ambientFog.GetValue();
-                        lastFogAlpha = fogAlpha.GetValue();
-                    }
-
-                    Config.EnableLight = true;
-                }
-                
-                else
-                {
-                    Config.EnableLight = false;
-                    ambientLight.SetValue(lastAmbientLight);
-
-                    if (Game1.currentLocation.Name.StartsWith("UndergroundMine"))
-                    {
-                        IReflectedProperty<bool> ambientFog = Helper.Reflection.GetProperty<bool>(Game1.currentLocation, "ambientFog");
-                        IReflectedField<float> fogAlpha = Helper.Reflection.GetField<float>(Game1.currentLocation, "fogAlpha");
-
-                        ambientFog.SetValue(lastAmbientFog);
-                        fogAlpha.SetValue(lastFogAlpha);
-                    }
-                }
-            }
-        }
-
-        // Add GMCM
+        /*********
+        ** Private methods
+        *********/
+        /// <inheritdoc cref="IGameLoopEvents.GameLaunched"/>
+        /// <param name="sender">The event sender.</param>
+        /// <param name="e">The event data.</param>
         private void GameLoop_GameLaunched(object sender, GameLaunchedEventArgs e)
         {
+            // add GMCM
             // get Generic Mod Config Menu's API (if it's installed)
             var configMenu = Helper.ModRegistry.GetApi<IGenericModConfigMenuApi>("spacechase0.GenericModConfigMenu");
             if (configMenu is null)
@@ -128,8 +71,86 @@ namespace LightSwitch
                 setValue: value => Config.Keybind = value
             );
         }
+
+        /// <inheritdoc cref="IInputEvents.ButtonPressed"/>
+        /// <param name="sender">The event sender.</param>
+        /// <param name="e">The event data.</param>
+        private void Input_ButtonPressed(object sender, ButtonPressedEventArgs e)
+        {
+            if (!Context.CanPlayerMove)
+                return;
+            if (e.Button == Config.Keybind)
+            {
+                IReflectedField<Color> ambientLight = Helper.Reflection.GetField<Color>(typeof(Game1), "ambientLight");
+
+                if (!Config.EnableLight)
+                {
+                    // cache old values
+                    lastAmbientLight = ambientLight.GetValue();
+
+                    if (Game1.currentLocation.Name.StartsWith("UndergroundMine"))
+                    {
+                        IReflectedProperty<bool> ambientFog = Helper.Reflection.GetProperty<bool>(Game1.currentLocation, "ambientFog");
+                        IReflectedField<float> fogAlpha = Helper.Reflection.GetField<float>(Game1.currentLocation, "fogAlpha");
+
+                        lastAmbientFog = ambientFog.GetValue();
+                        lastFogAlpha = fogAlpha.GetValue();
+                    }
+
+                    Config.EnableLight = true;
+                }
+
+                else
+                {
+                    Config.EnableLight = false;
+
+                    // return values to vanilla game settings
+                    ambientLight.SetValue(lastAmbientLight);
+                    if (Game1.currentLocation.Name.StartsWith("UndergroundMine"))
+                    {
+                        IReflectedProperty<bool> ambientFog = Helper.Reflection.GetProperty<bool>(Game1.currentLocation, "ambientFog");
+                        IReflectedField<float> fogAlpha = Helper.Reflection.GetField<float>(Game1.currentLocation, "fogAlpha");
+
+                        ambientFog.SetValue(lastAmbientFog);
+                        fogAlpha.SetValue(lastFogAlpha);
+                    }
+                }
+            }
+        }
+
+        /// <inheritdoc cref="IGameLoopEvents.UpdateTicked"/>
+        /// <param name="sender">The event sender.</param>
+        /// <param name="e">The event data.</param>
+        private void GameLoop_UpdateTicked(object sender, UpdateTickedEventArgs e)
+        {
+            if (!Context.IsPlayerFree) return;
+
+            IReflectedField<Color> ambientLight = Helper.Reflection.GetField<Color>(typeof(Game1), "ambientLight");
+
+            if (Config.EnableLight)
+            {
+
+                // makes outdoors/indoors bright
+                ambientLight.SetValue(Color.Transparent);
+
+                // handle mine levels
+                if (Game1.currentLocation.Name.StartsWith("UndergroundMine"))
+                {
+                    IReflectedProperty<bool> ambientFog = Helper.Reflection.GetProperty<bool>(Game1.currentLocation, "ambientFog");
+                    IReflectedField<float> fogAlpha = Helper.Reflection.GetField<float>(Game1.currentLocation, "fogAlpha");
+
+                    // removes darkening of the mine floors (and probably other things idk)
+                    Game1.drawLighting = false;
+
+                    // yeetus-deleetus the fog layer
+                    ambientFog.SetValue(false);
+                    fogAlpha.SetValue(0f);
+                }
+            }
+        }
     }
 
+    /// <summary>The mod configuration.</summary>
     public class ModConfig
     {
         public bool EnableLight { get; set; } = true;
