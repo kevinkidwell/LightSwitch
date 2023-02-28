@@ -64,6 +64,13 @@ namespace LightSwitch
                 setValue: value => Config.EnableLight = value
             );
 
+            configMenu.AddBoolOption(
+                mod: ModManifest,
+                name: () => "Enable Fog Removal",
+                getValue: () => Config.ToggleMineFog,
+                setValue: value => Config.ToggleMineFog = value
+            );
+
             configMenu.AddKeybind(
                 mod: ModManifest,
                 name: () => "Keybind",
@@ -83,7 +90,7 @@ namespace LightSwitch
             {
                 IReflectedField<Color> ambientLight = Helper.Reflection.GetField<Color>(typeof(Game1), "ambientLight");
 
-                if (!Config.EnableLight)
+                if (!Config.EnableLight) // switch on
                 {
                     // cache old values
                     lastAmbientLight = ambientLight.GetValue();
@@ -100,7 +107,7 @@ namespace LightSwitch
                     Config.EnableLight = true;
                 }
 
-                else
+                else // switch off
                 {
                     Config.EnableLight = false;
 
@@ -134,17 +141,21 @@ namespace LightSwitch
                 ambientLight.SetValue(Color.Transparent);
 
                 // handle mine levels
-                if (Game1.currentLocation.Name.StartsWith("UndergroundMine"))
+                // removes darkening of the mine floors (and probably other things idk)
+                Game1.drawLighting = false;
+
+                // remove fog
+                if (Config.ToggleMineFog)
                 {
-                    IReflectedProperty<bool> ambientFog = Helper.Reflection.GetProperty<bool>(Game1.currentLocation, "ambientFog");
-                    IReflectedField<float> fogAlpha = Helper.Reflection.GetField<float>(Game1.currentLocation, "fogAlpha");
+                    if (Game1.currentLocation.Name.StartsWith("UndergroundMine"))
+                    {
+                        IReflectedProperty<bool> ambientFog = Helper.Reflection.GetProperty<bool>(Game1.currentLocation, "ambientFog");
+                        IReflectedField<float> fogAlpha = Helper.Reflection.GetField<float>(Game1.currentLocation, "fogAlpha");
 
-                    // removes darkening of the mine floors (and probably other things idk)
-                    Game1.drawLighting = false;
-
-                    // yeetus-deleetus the fog layer
-                    ambientFog.SetValue(false);
-                    fogAlpha.SetValue(0f);
+                        // yeetus-deleetus the fog layer
+                        ambientFog.SetValue(false);
+                        fogAlpha.SetValue(0f);
+                    }
                 }
             }
         }
@@ -154,6 +165,7 @@ namespace LightSwitch
     public class ModConfig
     {
         public bool EnableLight { get; set; } = true;
+        public bool ToggleMineFog { get; set; } = true;
         public SButton Keybind { get; set; } = SButton.K;
     }
 }
