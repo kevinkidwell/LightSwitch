@@ -1,8 +1,0 @@
-{
-  "profiles": {
-    "LightSwitch": {
-      "commandName": "Project",
-      "commandLineArgs": "--mods-path \"C:\\Users\\Ashley\\AppData\\Roaming\\Stardrop\\Data\\Selected Mods\""
-    }
-  }
-}

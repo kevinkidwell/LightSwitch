@@ -1,4 +1,5 @@
 ﻿using GenericModConfigMenu;
+using ToolbarIcons;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using StardewModdingAPI;
@@ -40,7 +41,9 @@ namespace LightSwitch
         /*********
         ** Private methods
         *********/
-
+        /// <inheritdoc cref="IContentEvents.AssetRequested"/>
+        /// <param name="sender">The event sender</param>
+        /// <param name="e">The event data</param>
         private void OnAssetRequested(object? sender, AssetRequestedEventArgs e)
         {
             if (e.NameWithoutLocale.IsEquivalentTo("Mods/LightSwitch/ToolButton"))
@@ -48,7 +51,6 @@ namespace LightSwitch
                 e.LoadFromModFile<Texture2D>("assets/icon.png", AssetLoadPriority.Low);
             }
         }
-
 
         /// <inheritdoc cref="IGameLoopEvents.GameLaunched"/>
         /// <param name="sender">The event sender.</param>
@@ -103,6 +105,7 @@ namespace LightSwitch
             };
         }
 
+        /// <summary>Just make all the light daytime</summary>
         private void ToggleLight()
         {
             if (!Config.EnableLight) // switch on
